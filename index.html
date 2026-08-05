@@ -7,14 +7,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Our Expenses</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
-<body class="bg-gray-100 p-4 pb-20 max-w-md mx-auto font-sans">
+<body class="bg-gray-100 p-4 pb-24 max-w-md mx-auto font-sans">
+  
   <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Shared Expenses</h1>
   
-  <!-- Data Entry Form -->
-  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
-    <form id="expenseForm" class="space-y-4">
+  <!-- Data Entry Form (Collapsible to save space on mobile) -->
+  <details class="bg-white p-4 rounded-xl shadow-sm mb-6 group">
+    <summary class="flex justify-between items-center cursor-pointer text-gray-600">
+      <span class="font-semibold text-lg">Log New Expense</span>
+      <span class="group-open:rotate-180 transform transition-transform">▼</span>
+    </summary>
+    <form id="expenseForm" class="space-y-4 pt-4 mt-2 border-t">
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Amount (₹)</label>
@@ -36,8 +41,12 @@
             <option>Dining</option>
             <option>Utilities</option>
             <option>Travel</option>
-            <option>Misc</option>
-          </select>
+            <option>EMI</option>
+            <option>Rent and Maintainance</option>
+            <option>Shopping</option>
+            <option>Investment</option>
+            <option>Home/Misc</option>
+          </select>s
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">Date</label>
@@ -48,22 +57,33 @@
         <label class="block text-xs text-gray-500 mb-1">Description</label>
         <input type="text" id="desc" required class="w-full border rounded-lg p-2 bg-gray-50" placeholder="e.g., Weekly groceries">
       </div>
-      <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md">Log Expense</button>
+      <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition">Log Expense</button>
     </form>
-  </div>
+  </details>
 
   <!-- Dashboard Breakdown -->
   <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
-    <h2 class="text-sm font-bold text-gray-500 mb-2">TOTAL SPENT</h2>
-    <p class="text-3xl font-black text-gray-800 mb-4" id="totalSpent">₹0</p>
-    <canvas id="expenseChart" height="250"></canvas>
+    <!-- Month Selector (Newly added) -->
+    <div class="flex justify-between items-center mb-5 pb-2 border-b">
+      <h2 class="text-xl font-bold text-gray-800">Monthly View</h2>
+      <input type="month" id="displayMonth" class="border rounded-lg p-2 text-sm bg-gray-50">
+    </div>
+
+    <div class="mb-5">
+      <h2 class="text-sm font-bold text-gray-500 mb-2">TOTAL SPENT (SELECTED MONTH)</h2>
+      <p class="text-4xl font-extrabold text-gray-900" id="totalSpent">₹0.00</p>
+    </div>
+
+    <div class="h-64 mb-2">
+      <canvas id="expenseChart"></canvas>
+    </div>
   </div>
 
-  <!-- Recent Transactions -->
+  <!-- Transactions for the selected month -->
   <div class="bg-white p-4 rounded-xl shadow-sm">
-    <h2 class="text-sm font-bold text-gray-500 mb-4">RECENT SPENDS</h2>
+    <h2 class="text-sm font-bold text-gray-500 mb-4 uppercase">Spends in Selected Month</h2>
     <div id="expenseList" class="space-y-3">
-      <!-- JavaScript will inject rows here -->
+      <!-- JavaScript will inject filtered rows here -->
     </div>
   </div>
 
@@ -73,7 +93,7 @@
     import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } 
       from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-    // 🔴 REPLACE THIS BLOCK WITH YOUR FIREBASE CONFIG
+    // 🔴 REPLACE THIS BLOCK WITH YOUR FIREBASE CONFIG (Required)
     const firebaseConfig = {
       apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
       authDomain: "expense-tracker-2e991.firebaseapp.com",
@@ -87,75 +107,150 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    // Set form to today's date
-    document.getElementById('date').valueAsDate = new Date();
+    // Set form date input to today
+    const dateInput = document.getElementById('date');
+    dateInput.valueAsDate = new Date();
+
+    // Initialize Month Selector (Defaults to current month YYYY-MM)
+    const monthSelector = document.getElementById('displayMonth');
+    const now = new Date();
+    monthSelector.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     let chartInstance = null;
+    let cachedAllData = []; // Store everything for easy local filtering
 
-    // Real-time Database Listener
-    const q = query(collection(db, "expenses"), orderBy("date", "desc"));
-    onSnapshot(q, (snapshot) => {
-      let total = 0;
+    // --- Core Rendering Function (Filtering happens here) ---
+    function renderAppForSelectedMonth() {
+      const selectedMonthYYYYMM = monthSelector.value;
+      if (!selectedMonthYYYYMM) return;
+
+      let monthTotal = 0;
       let catTotals = {};
-      let html = '';
+      let filteredHtml = '';
 
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const amt = parseFloat(data.amount);
-        total += amt;
-        catTotals[data.category] = (catTotals[data.category] || 0) + amt;
+      // Filter and aggregate data locally from cache
+      cachedAllData.forEach((data) => {
+        // Firestore date strings are "YYYY-MM-DD"
+        if (data.date && data.date.startsWith(selectedMonthYYYYMM)) {
+          const amt = parseFloat(data.amount);
+          monthTotal += amt;
+          catTotals[data.category] = (catTotals[data.category] || 0) + amt;
 
-        html += `
-          <div class="flex justify-between items-center border-b pb-2 last:border-0">
-            <div>
-              <p class="font-bold text-gray-800">${data.description}</p>
-              <p class="text-xs text-gray-500">${data.date} • Paid by ${data.paidBy}</p>
+          // Format date for display (e.g., May 15)
+          const transactionDate = new Date(data.date);
+          const displayDate = transactionDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+          filteredHtml += `
+            <div class="flex justify-between items-center border-b pb-3 last:border-0 last:pb-0">
+              <div class="flex items-center gap-3">
+                <div class="bg-gray-100 p-3 rounded-full text-lg">${data.paidBy[0]}</div> <!-- Initials icon -->
+                <div>
+                  <p class="font-bold text-gray-800">${data.description}</p>
+                  <p class="text-xs text-gray-500">${displayDate} • Paid by ${data.paidBy} in ${data.category}</p>
+                </div>
+              </div>
+              <p class="font-bold text-red-500 text-lg">₹${amt.toFixed(2)}</p>
             </div>
-            <p class="font-bold text-red-500">₹${amt.toFixed(2)}</p>
-          </div>
-        `;
+          `;
+        }
       });
 
-      // Update UI
-      document.getElementById('totalSpent').innerText = `₹${total.toFixed(2)}`;
-      document.getElementById('expenseList').innerHTML = html;
+      // --- Update UI ---
+      document.getElementById('totalSpent').innerText = `₹${monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      document.getElementById('expenseList').innerHTML = filteredHtml || '<p class="text-center text-gray-500 italic py-4">No data for this month.</p>';
 
-      // Draw Breakdown Chart
+      // --- Draw/Update Chart ---
       const ctx = document.getElementById('expenseChart').getContext('2d');
-      if (chartInstance) chartInstance.destroy();
       
+      // Cleanup old chart if it exists
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+
+      if (monthTotal === 0) return; // Nothing to chart
+
       chartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: Object.keys(catTotals),
           datasets: [{
             data: Object.values(catTotals),
-            backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+            backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7'],
+            borderWidth: 2,
+            borderColor: '#ffffff',
+            hoverOffset: 10
           }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 12 } } },
+            title: { display: true, text: `Category Wise Breakdown: ${selectedMonthYYYYMM}`, font: { size: 14, weight: 'bold' } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed;
+                  const percentage = ((value / monthTotal) * 100).toFixed(1);
+                  return `${label}: ₹${value.toFixed(2)} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
       });
+    }
+
+    // --- Set up data listener & monthly interaction ---
+
+    // 1. Listen for month selector changes
+    monthSelector.addEventListener('change', renderAppForSelectedMonth);
+
+    // 2. Real-time Database Listener (Fetches all, caches locally)
+    const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+    onSnapshot(q, (snapshot) => {
+      cachedAllData = []; // Clear old cache
+      snapshot.forEach((doc) => {
+        cachedAllData.push(doc.data());
+      });
+      // Initial render for the default (current) month
+      renderAppForSelectedMonth();
     });
 
-    // Save Data Function
+    // --- Save Data Function (Handle new inputs) ---
     document.getElementById('expenseForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = e.target.querySelector('button');
       btn.innerText = 'Saving...';
+      btn.disabled = true;
       
-      await addDoc(collection(db, "expenses"), {
-        amount: parseFloat(document.getElementById('amount').value),
-        paidBy: document.getElementById('paidBy').value,
-        category: document.getElementById('category').value,
-        date: document.getElementById('date').value,
-        description: document.getElementById('desc').value,
-        timestamp: new Date()
-      });
-      
-      // Reset form
-      document.getElementById('amount').value = '';
-      document.getElementById('desc').value = '';
-      btn.innerText = 'Log Expense';
+      try {
+        await addDoc(collection(db, "expenses"), {
+          amount: parseFloat(document.getElementById('amount').value),
+          paidBy: document.getElementById('paidBy').value,
+          category: document.getElementById('category').value,
+          date: document.getElementById('date').value,
+          description: document.getElementById('desc').value,
+          timestamp: new Date()
+        });
+        
+        // Reset form to defaults
+        document.getElementById('amount').value = '';
+        document.getElementById('desc').value = '';
+        dateInput.valueAsDate = new Date(); // Reset date to today
+        
+        // Close collapsible form if open on submit
+        document.querySelector('details').open = false;
+        
+      } catch (err) {
+        console.error("Error saving data:", err);
+        alert("Failed to save. Check internet connection.");
+      } finally {
+        btn.innerText = 'Log Expense';
+        btn.disabled = false;
+      }
     });
   </script>
 </body>
