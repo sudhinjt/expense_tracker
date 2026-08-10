@@ -13,10 +13,10 @@
   
   <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Shared Expenses</h1>
   
-  <!-- Data Entry Form -->
-  <details class="bg-white p-4 rounded-xl shadow-sm mb-6 group" open>
+  <!-- Data Entry / Edit Form -->
+  <details id="expenseFormDetails" class="bg-white p-4 rounded-xl shadow-sm mb-4 group" open>
     <summary class="flex justify-between items-center cursor-pointer text-gray-600">
-      <span class="font-semibold text-lg">Log New Expense</span>
+      <span id="formTitle" class="font-semibold text-lg text-blue-700">Log New Expense</span>
       <span class="group-open:rotate-180 transform transition-transform">▼</span>
     </summary>
     <form id="expenseForm" class="space-y-4 pt-4 mt-2 border-t">
@@ -36,6 +36,7 @@
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Category</label>
+          <!-- User's Updated Categories -->
           <select id="category" class="w-full border rounded-lg p-2 bg-gray-50">
             <option>Groceries</option>
             <option>Food & Dining</option>
@@ -69,20 +70,50 @@
         <label class="block text-xs text-gray-500 mb-1">Description</label>
         <input type="text" id="desc" required class="w-full border rounded-lg p-2 bg-gray-50" placeholder="e.g., Weekly groceries">
       </div>
-      <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition">Log Expense</button>
+      
+      <div class="flex gap-2 pt-2">
+        <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition">Log Expense</button>
+        <button type="button" id="cancelEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-500 transition">Cancel Edit</button>
+      </div>
     </form>
+  </details>
+
+  <!-- Filter & Grouping Section -->
+  <details class="bg-white p-4 rounded-xl shadow-sm mb-6 group">
+    <summary class="flex justify-between items-center cursor-pointer text-gray-600">
+      <span class="font-semibold text-md">Filters & Categories</span>
+      <span class="group-open:rotate-180 transform transition-transform">▼</span>
+    </summary>
+    <div class="pt-4 mt-2 border-t">
+      <p class="text-xs text-gray-500 mb-3">Uncheck categories to hide them from the totals below.</p>
+      <div id="categoryFilters" class="grid grid-cols-2 gap-y-2 gap-x-1 text-sm text-gray-700">
+        <!-- JS will auto-populate checkboxes here based on the select dropdown -->
+      </div>
+    </div>
   </details>
 
   <!-- Dashboard Breakdown -->
   <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
     <div class="flex justify-between items-center mb-5 pb-2 border-b">
-      <h2 class="text-xl font-bold text-gray-800">Monthly View</h2>
-      <input type="month" id="displayMonth" class="border rounded-lg p-2 text-sm bg-gray-50">
+      <h2 class="text-xl font-bold text-gray-800">Dashboard</h2>
+      <input type="month" id="displayMonth" class="border rounded-lg p-2 text-sm bg-gray-50 font-bold">
     </div>
 
-    <div class="mb-5">
-      <h2 class="text-sm font-bold text-gray-500 mb-2">TOTAL SPENT (SELECTED MONTH)</h2>
-      <p class="text-4xl font-extrabold text-gray-900" id="totalSpent">₹0.00</p>
+    <!-- Group By Summaries -->
+    <div class="grid grid-cols-2 gap-3 mb-5">
+      <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
+        <h3 class="text-[10px] font-bold text-indigo-800 mb-2 tracking-wider">PAID BY</h3>
+        <div id="personSummary" class="text-sm text-indigo-900 space-y-1"></div>
+      </div>
+      <div class="bg-teal-50 p-3 rounded-xl border border-teal-100">
+        <h3 class="text-[10px] font-bold text-teal-800 mb-2 tracking-wider">PAYMENT MODE</h3>
+        <div id="modeSummary" class="text-sm text-teal-900 space-y-1"></div>
+      </div>
+    </div>
+
+    <div class="mb-5 text-center">
+      <h2 class="text-xs font-bold text-gray-500 mb-1">TOTAL FOR SELECTED FILTERS</h2>
+      <p class="text-4xl font-extrabold text-gray-900" id="totalSpent">₹0</p>
     </div>
 
     <div class="h-64 mb-2">
@@ -90,9 +121,9 @@
     </div>
   </div>
 
-  <!-- Transactions -->
+  <!-- Transactions List -->
   <div class="bg-white p-4 rounded-xl shadow-sm">
-    <h2 class="text-sm font-bold text-gray-500 mb-4 uppercase">Spends in Selected Month</h2>
+    <h2 class="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Transactions</h2>
     <div id="expenseList" class="space-y-3">
       <!-- Injected rows -->
     </div>
@@ -100,7 +131,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } 
+    import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, orderBy } 
       from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
     // 🔴 REPLACE THIS BLOCK WITH YOUR ACTUAL FIREBASE KEYS
@@ -112,123 +143,210 @@
       messagingSenderId: "363528972811",
       appId: "1:363528972811:web:32f667858f8df59cae350e",
       measurementId: "G-VPQSHPQ5Z7"
-    };
+    }; 	
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    document.getElementById('date').valueAsDate = new Date();
+    // Global State
+    let chartInstance = null;
+    let cachedAllData = []; 
+    let editingDocId = null; // Tracks if we are editing an existing record
 
+    // Init Dates
+    document.getElementById('date').valueAsDate = new Date();
     const monthSelector = document.getElementById('displayMonth');
     const now = new Date();
     monthSelector.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    let chartInstance = null;
-    let cachedAllData = []; 
+    // --- Dynamic Category Filters Setup ---
+    const categoryOptions = Array.from(document.getElementById('category').options).map(o => o.value);
+    let selectedFilters = new Set(categoryOptions); // All selected by default
 
+    const filterContainer = document.getElementById('categoryFilters');
+    filterContainer.innerHTML = categoryOptions.map(cat => `
+      <label class="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border cursor-pointer">
+        <input type="checkbox" value="${cat}" checked class="category-filter rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+        <span class="truncate text-gray-700">${cat}</span>
+      </label>
+    `).join('');
+
+    // Listen for filter changes
+    filterContainer.addEventListener('change', (e) => {
+      if (e.target.classList.contains('category-filter')) {
+        if (e.target.checked) selectedFilters.add(e.target.value);
+        else selectedFilters.delete(e.target.value);
+        renderAppForSelectedMonth();
+      }
+    });
+
+    // --- Core Render Logic ---
     function renderAppForSelectedMonth() {
       const selectedMonthYYYYMM = monthSelector.value;
       if (!selectedMonthYYYYMM) return;
 
       let monthTotal = 0;
       let catTotals = {};
+      let personTotals = {};
+      let modeTotals = {};
       let filteredHtml = '';
 
       cachedAllData.forEach((data) => {
-        if (data.date && data.date.startsWith(selectedMonthYYYYMM)) {
+        // Filter by Month AND Checkboxes
+        if (data.date && data.date.startsWith(selectedMonthYYYYMM) && selectedFilters.has(data.category)) {
           const amt = parseFloat(data.amount);
           monthTotal += amt;
+          
+          // Aggregations
           catTotals[data.category] = (catTotals[data.category] || 0) + amt;
+          personTotals[data.paidBy] = (personTotals[data.paidBy] || 0) + amt;
+          
+          const payMode = data.paymentMode || 'Unknown';
+          modeTotals[payMode] = (modeTotals[payMode] || 0) + amt;
 
           const transactionDate = new Date(data.date);
           const displayDate = transactionDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-          
-          // Fallback to "Unknown" if old records don't have a payment mode saved
-          const payMode = data.paymentMode || 'Unknown';
 
           filteredHtml += `
             <div class="flex justify-between items-center border-b pb-3 last:border-0 last:pb-0">
               <div class="flex items-center gap-3">
-                <div class="bg-gray-100 p-3 rounded-full text-lg">${data.paidBy[0]}</div>
+                <div class="bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full font-bold text-gray-600">${data.paidBy[0]}</div>
                 <div>
                   <p class="font-bold text-gray-800">${data.description}</p>
-                  <p class="text-xs text-gray-500">${displayDate} • ${data.paidBy} via ${payMode} • ${data.category}</p>
+                  <p class="text-[11px] text-gray-500">${displayDate} • ${payMode} • ${data.category}</p>
                 </div>
               </div>
-              <p class="font-bold text-red-500 text-lg">₹${amt.toFixed(2)}</p>
+              <div class="flex items-center gap-3">
+                <p class="font-bold text-red-500">₹${amt.toFixed(2)}</p>
+                <button data-id="${data.id}" class="edit-btn text-blue-500 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition">✏️</button>
+              </div>
             </div>
           `;
         }
       });
 
-      document.getElementById('totalSpent').innerText = `₹${monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-      document.getElementById('expenseList').innerHTML = filteredHtml || '<p class="text-center text-gray-500 italic py-4">No data for this month.</p>';
+      // Update UI Summaries
+      document.getElementById('totalSpent').innerText = `₹${monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
+      document.getElementById('expenseList').innerHTML = filteredHtml || '<p class="text-center text-gray-500 italic py-4">No data matches filters.</p>';
 
+      document.getElementById('personSummary').innerHTML = Object.keys(personTotals).length ? Object.entries(personTotals)
+        .map(([p, a]) => `<div class="flex justify-between"><span>${p}:</span> <strong>₹${a.toFixed(0)}</strong></div>`).join('') : '<em>None</em>';
+        
+      document.getElementById('modeSummary').innerHTML = Object.keys(modeTotals).length ? Object.entries(modeTotals)
+        .map(([m, a]) => `<div class="flex justify-between"><span>${m}:</span> <strong>₹${a.toFixed(0)}</strong></div>`).join('') : '<em>None</em>';
+
+      // Update Chart
       const ctx = document.getElementById('expenseChart').getContext('2d');
       if (chartInstance) chartInstance.destroy();
 
-      if (monthTotal === 0) return; 
-
-      chartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(catTotals),
-          datasets: [{
-            data: Object.values(catTotals),
-            backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7', '#ec4899', '#14b8a6'],
-            borderWidth: 2,
-            borderColor: '#ffffff',
-            hoverOffset: 10
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 12 } } }
-          }
-        }
-      });
+      if (monthTotal > 0) {
+        chartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(catTotals),
+            datasets: [{
+              data: Object.values(catTotals),
+              backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7', '#ec4899', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#64748b'],
+              borderWidth: 2, borderColor: '#ffffff', hoverOffset: 5
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
+        });
+      }
     }
 
+    // --- Listeners ---
     monthSelector.addEventListener('change', renderAppForSelectedMonth);
 
+    // Fetch Data (Now grabs the Document ID too)
     const q = query(collection(db, "expenses"), orderBy("date", "desc"));
     onSnapshot(q, (snapshot) => {
       cachedAllData = []; 
       snapshot.forEach((doc) => {
-        cachedAllData.push(doc.data());
+        cachedAllData.push({ id: doc.id, ...doc.data() });
       });
       renderAppForSelectedMonth();
     });
 
+    // --- Edit Logic ---
+    function resetForm() {
+      editingDocId = null;
+      document.getElementById('formTitle').innerText = 'Log New Expense';
+      document.getElementById('formTitle').className = 'font-semibold text-lg text-blue-700';
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.innerText = 'Log Expense';
+      submitBtn.className = 'flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition';
+      
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('amount').value = '';
+      document.getElementById('desc').value = '';
+      document.getElementById('date').valueAsDate = new Date();
+    }
+
+    document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+    document.getElementById('expenseList').addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.edit-btn');
+      if (editBtn) {
+        const id = editBtn.dataset.id;
+        const expense = cachedAllData.find(ex => ex.id === id);
+        if (expense) {
+          // Fill form
+          document.getElementById('amount').value = expense.amount;
+          document.getElementById('paidBy').value = expense.paidBy;
+          document.getElementById('category').value = expense.category;
+          document.getElementById('paymentMode').value = expense.paymentMode || 'UPI';
+          document.getElementById('date').value = expense.date;
+          document.getElementById('desc').value = expense.description;
+          
+          // Change UI to Edit Mode
+          editingDocId = id;
+          document.getElementById('formTitle').innerText = 'Editing Expense...';
+          document.getElementById('formTitle').className = 'font-semibold text-lg text-amber-600 animate-pulse';
+          
+          const submitBtn = document.getElementById('submitBtn');
+          submitBtn.innerText = 'Update Expense';
+          submitBtn.className = 'flex-1 bg-amber-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-amber-600 active:scale-95 transition';
+          
+          document.getElementById('cancelEditBtn').classList.remove('hidden');
+          
+          // Open details tag and scroll to top
+          document.getElementById('expenseFormDetails').open = true;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    });
+
+    // --- Save / Update ---
     document.getElementById('expenseForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = e.target.querySelector('button');
+      const btn = document.getElementById('submitBtn');
       btn.innerText = 'Saving...';
       btn.disabled = true;
       
+      const payload = {
+        amount: parseFloat(document.getElementById('amount').value),
+        paidBy: document.getElementById('paidBy').value,
+        category: document.getElementById('category').value,
+        paymentMode: document.getElementById('paymentMode').value,
+        date: document.getElementById('date').value,
+        description: document.getElementById('desc').value,
+        timestamp: new Date() // Updates timestamp on edit too
+      };
+
       try {
-        await addDoc(collection(db, "expenses"), {
-          amount: parseFloat(document.getElementById('amount').value),
-          paidBy: document.getElementById('paidBy').value,
-          category: document.getElementById('category').value,
-          paymentMode: document.getElementById('paymentMode').value,
-          date: document.getElementById('date').value,
-          description: document.getElementById('desc').value,
-          timestamp: new Date()
-        });
-        
-        document.getElementById('amount').value = '';
-        document.getElementById('desc').value = '';
-        document.getElementById('date').valueAsDate = new Date();
-        document.querySelector('details').open = false;
-        
+        if (editingDocId) {
+          await updateDoc(doc(db, "expenses", editingDocId), payload);
+        } else {
+          await addDoc(collection(db, "expenses"), payload);
+        }
+        resetForm();
+        document.getElementById('expenseFormDetails').open = false; // Collapse on success
       } catch (err) {
         console.error("Error saving data:", err);
         alert("Failed to save. Check internet connection.");
+        btn.innerText = editingDocId ? 'Update Expense' : 'Log Expense';
       } finally {
-        btn.innerText = 'Log Expense';
         btn.disabled = false;
       }
     });
