@@ -36,7 +36,6 @@
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Category</label>
-          <!-- User's Updated Categories -->
           <select id="category" class="w-full border rounded-lg p-2 bg-gray-50">
             <option>Groceries</option>
             <option>Food & Dining</option>
@@ -85,17 +84,26 @@
       <span class="group-open:rotate-180 transform transition-transform">▼</span>
     </summary>
     <div class="pt-4 mt-2 border-t">
-      <p class="text-xs text-gray-500 mb-3">Uncheck categories to hide them from the totals below.</p>
+      <p class="text-xs text-gray-500 mb-3">Uncheck categories to hide them from the totals and charts below.</p>
       <div id="categoryFilters" class="grid grid-cols-2 gap-y-2 gap-x-1 text-sm text-gray-700">
         <!-- JS will auto-populate checkboxes here based on the select dropdown -->
       </div>
     </div>
   </details>
 
-  <!-- Dashboard Breakdown -->
+  <!-- Monthly Trend Analysis -->
+  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
+    <h2 class="text-xl font-bold text-gray-800 mb-2 pb-2 border-b">Spend Trends (All Months)</h2>
+    <p class="text-xs text-gray-500 mb-4">Category-wise monthly breakdown</p>
+    <div class="h-64 mb-2">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Dashboard Breakdown (Single Month) -->
   <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
     <div class="flex justify-between items-center mb-5 pb-2 border-b">
-      <h2 class="text-xl font-bold text-gray-800">Dashboard</h2>
+      <h2 class="text-xl font-bold text-gray-800">Month Overview</h2>
       <input type="month" id="displayMonth" class="border rounded-lg p-2 text-sm bg-gray-50 font-bold">
     </div>
 
@@ -112,7 +120,7 @@
     </div>
 
     <div class="mb-5 text-center">
-      <h2 class="text-xs font-bold text-gray-500 mb-1">TOTAL FOR SELECTED FILTERS</h2>
+      <h2 class="text-xs font-bold text-gray-500 mb-1">TOTAL FOR SELECTED MONTH</h2>
       <p class="text-4xl font-extrabold text-gray-900" id="totalSpent">₹0</p>
     </div>
 
@@ -136,22 +144,26 @@
 
     // 🔴 REPLACE THIS BLOCK WITH YOUR ACTUAL FIREBASE KEYS
     const firebaseConfig = {
-      apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
-      authDomain: "expense-tracker-2e991.firebaseapp.com",
-      projectId: "expense-tracker-2e991",
-      storageBucket: "expense-tracker-2e991.firebasestorage.app",
-      messagingSenderId: "363528972811",
-      appId: "1:363528972811:web:32f667858f8df59cae350e",
-      measurementId: "G-VPQSHPQ5Z7"
-    }; 	
+      apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
+      authDomain: "expense-tracker-2e991.firebaseapp.com",
+      projectId: "expense-tracker-2e991",
+      storageBucket: "expense-tracker-2e991.firebasestorage.app",
+      messagingSenderId: "363528972811",
+      appId: "1:363528972811:web:32f667858f8df59cae350e",
+      measurementId: "G-VPQSHPQ5Z7"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
     // Global State
     let chartInstance = null;
+    let trendChartInstance = null;
     let cachedAllData = []; 
-    let editingDocId = null; // Tracks if we are editing an existing record
+    let editingDocId = null; 
+    
+    // Standard chart colors mapping
+    const chartColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7', '#ec4899', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#64748b'];
 
     // Init Dates
     document.getElementById('date').valueAsDate = new Date();
@@ -161,7 +173,7 @@
 
     // --- Dynamic Category Filters Setup ---
     const categoryOptions = Array.from(document.getElementById('category').options).map(o => o.value);
-    let selectedFilters = new Set(categoryOptions); // All selected by default
+    let selectedFilters = new Set(categoryOptions); 
 
     const filterContainer = document.getElementById('categoryFilters');
     filterContainer.innerHTML = categoryOptions.map(cat => `
@@ -177,8 +189,91 @@
         if (e.target.checked) selectedFilters.add(e.target.value);
         else selectedFilters.delete(e.target.value);
         renderAppForSelectedMonth();
+        renderTrendChart(); // Update trend chart too!
       }
     });
+
+    // --- Trend Chart Logic ---
+    function renderTrendChart() {
+      if (!cachedAllData || cachedAllData.length === 0) return;
+
+      const monthlyData = {};
+      
+      // Aggregate data by Month and Category
+      cachedAllData.forEach((data) => {
+        if (!selectedFilters.has(data.category)) return; // Respect checkboxes
+
+        const monthKey = data.date.substring(0, 7); // Extracts "YYYY-MM"
+        if (!monthlyData[monthKey]) monthlyData[monthKey] = {};
+        
+        const amt = parseFloat(data.amount);
+        monthlyData[monthKey][data.category] = (monthlyData[monthKey][data.category] || 0) + amt;
+      });
+
+      // Sort months chronologically
+      const sortedMonths = Object.keys(monthlyData).sort();
+      if (sortedMonths.length === 0) {
+          if(trendChartInstance) trendChartInstance.destroy();
+          return;
+      }
+
+      // Generate datasets mapped to standard colors
+      const datasets = [];
+      categoryOptions.forEach((cat, index) => {
+        if (!selectedFilters.has(cat)) return;
+        
+        const dataForCat = sortedMonths.map(month => monthlyData[month][cat] || 0);
+        // Only add dataset if it has > 0 value in at least one month
+        if (dataForCat.some(val => val > 0)) {
+            datasets.push({
+                label: cat,
+                data: dataForCat,
+                backgroundColor: chartColors[index % chartColors.length],
+                borderWidth: 0
+            });
+        }
+      });
+
+      // Format X-axis labels (e.g., "Jan 23", "Feb 23")
+      const labels = sortedMonths.map(m => {
+          const d = new Date(m + '-01');
+          return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      });
+
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      if (trendChartInstance) trendChartInstance.destroy();
+
+      trendChartInstance = new Chart(ctx, {
+        type: 'bar', // Stacked bar chart
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true }
+          },
+          plugins: {
+            legend: { 
+                position: 'bottom', 
+                labels: { boxWidth: 10, font: { size: 10 }, padding: 10 } 
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        let label = context.dataset.label || '';
+                        if (label) label += ': ';
+                        if (context.parsed.y !== null) {
+                            label += '₹' + context.parsed.y.toLocaleString('en-IN');
+                        }
+                        return label;
+                    }
+                }
+            }
+          }
+        }
+      });
+    }
 
     // --- Core Render Logic ---
     function renderAppForSelectedMonth() {
@@ -235,18 +330,24 @@
       document.getElementById('modeSummary').innerHTML = Object.keys(modeTotals).length ? Object.entries(modeTotals)
         .map(([m, a]) => `<div class="flex justify-between"><span>${m}:</span> <strong>₹${a.toFixed(0)}</strong></div>`).join('') : '<em>None</em>';
 
-      // Update Chart
+      // Update Doughnut Chart (Single Month)
       const ctx = document.getElementById('expenseChart').getContext('2d');
       if (chartInstance) chartInstance.destroy();
 
       if (monthTotal > 0) {
+        // Map colors consistently with the Trend Chart
+        const bgColors = Object.keys(catTotals).map(cat => {
+            const index = categoryOptions.indexOf(cat);
+            return chartColors[index % chartColors.length];
+        });
+
         chartInstance = new Chart(ctx, {
           type: 'doughnut',
           data: {
             labels: Object.keys(catTotals),
             datasets: [{
               data: Object.values(catTotals),
-              backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7', '#ec4899', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#64748b'],
+              backgroundColor: bgColors,
               borderWidth: 2, borderColor: '#ffffff', hoverOffset: 5
             }]
           },
@@ -258,7 +359,7 @@
     // --- Listeners ---
     monthSelector.addEventListener('change', renderAppForSelectedMonth);
 
-    // Fetch Data (Now grabs the Document ID too)
+    // Fetch Data
     const q = query(collection(db, "expenses"), orderBy("date", "desc"));
     onSnapshot(q, (snapshot) => {
       cachedAllData = []; 
@@ -266,6 +367,7 @@
         cachedAllData.push({ id: doc.id, ...doc.data() });
       });
       renderAppForSelectedMonth();
+      renderTrendChart(); // Initial load of trend chart
     });
 
     // --- Edit Logic ---
@@ -331,7 +433,7 @@
         paymentMode: document.getElementById('paymentMode').value,
         date: document.getElementById('date').value,
         description: document.getElementById('desc').value,
-        timestamp: new Date() // Updates timestamp on edit too
+        timestamp: new Date()
       };
 
       try {
