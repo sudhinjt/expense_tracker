@@ -91,15 +91,6 @@
     </div>
   </details>
 
-  <!-- Monthly Trend Analysis -->
-  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
-    <h2 class="text-xl font-bold text-gray-800 mb-2 pb-2 border-b">Spend Trends (All Months)</h2>
-    <p class="text-xs text-gray-500 mb-4">Category-wise monthly breakdown</p>
-    <div class="h-64 mb-2">
-      <canvas id="trendChart"></canvas>
-    </div>
-  </div>
-
   <!-- Dashboard Breakdown (Single Month) -->
   <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
     <div class="flex justify-between items-center mb-5 pb-2 border-b">
@@ -129,6 +120,15 @@
     </div>
   </div>
 
+  <!-- Monthly Trend Analysis -->
+  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
+    <h2 class="text-xl font-bold text-gray-800 mb-2 pb-2 border-b">Spend Trends (All Months)</h2>
+    <p class="text-xs text-gray-500 mb-4">Category-wise monthly breakdown</p>
+    <div class="h-64 mb-2">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
   <!-- Transactions List -->
   <div class="bg-white p-4 rounded-xl shadow-sm">
     <h2 class="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Transactions</h2>
@@ -143,7 +143,7 @@
       from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
     // 🔴 REPLACE THIS BLOCK WITH YOUR ACTUAL FIREBASE KEYS
-    const firebaseConfig = {
+   const firebaseConfig = {
       apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
       authDomain: "expense-tracker-2e991.firebaseapp.com",
       projectId: "expense-tracker-2e991",
@@ -151,7 +151,7 @@
       messagingSenderId: "363528972811",
       appId: "1:363528972811:web:32f667858f8df59cae350e",
       measurementId: "G-VPQSHPQ5Z7"
-    };
+    };	
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -189,11 +189,11 @@
         if (e.target.checked) selectedFilters.add(e.target.value);
         else selectedFilters.delete(e.target.value);
         renderAppForSelectedMonth();
-        renderTrendChart(); // Update trend chart too!
+        renderTrendChart(); // Update trend chart too
       }
     });
 
-    // --- Trend Chart Logic ---
+    // --- Trend Chart Logic (Line Chart) ---
     function renderTrendChart() {
       if (!cachedAllData || cachedAllData.length === 0) return;
 
@@ -223,13 +223,19 @@
         if (!selectedFilters.has(cat)) return;
         
         const dataForCat = sortedMonths.map(month => monthlyData[month][cat] || 0);
+        
         // Only add dataset if it has > 0 value in at least one month
         if (dataForCat.some(val => val > 0)) {
+            const color = chartColors[index % chartColors.length];
             datasets.push({
                 label: cat,
                 data: dataForCat,
-                backgroundColor: chartColors[index % chartColors.length],
-                borderWidth: 0
+                backgroundColor: color,
+                borderColor: color, // Ensure the line has the correct color
+                borderWidth: 2,     // Thickness of the line
+                pointRadius: 3,     // Visible points
+                pointHoverRadius: 6,
+                tension: 0.3        // Slight curve to the lines
             });
         }
       });
@@ -244,14 +250,14 @@
       if (trendChartInstance) trendChartInstance.destroy();
 
       trendChartInstance = new Chart(ctx, {
-        type: 'bar', // Stacked bar chart
+        type: 'line', // Changed to Line Chart
         data: { labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { stacked: true, grid: { display: false } },
-            y: { stacked: true, beginAtZero: true }
+            x: { grid: { display: false } },
+            y: { beginAtZero: true } // Let multiple lines overlap instead of stacking
           },
           plugins: {
             legend: { 
