@@ -2,436 +2,1278 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Our Expenses</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Our Expenses">
+  <meta name="theme-color" content="#2563eb">
+  <title>Our Expenses — Sudhin & Mereena</title>
+  
+  <!-- Tailwind CSS & Chart.js CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- iOS App Icon (Data URI SVG) & Manifest -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Crect width='100' height='100' rx='22' fill='%232563eb'/%3E%3Ctext x='50' y='65' font-size='50' font-family='-apple-system, sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3E₹%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232563eb'/%3E%3Ctext x='50' y='65' font-size='50' font-weight='bold' fill='white' text-anchor='middle'%3E₹%3C/text%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#2563eb',
+            sudhin: '#2563eb',
+            mereena: '#ec4899'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    input, select, textarea {
+      font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+    }
+  </style>
 </head>
-<body class="bg-gray-100 p-4 pb-24 max-w-md mx-auto font-sans">
-  
-  <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Shared Expenses</h1>
-  
-  <!-- Data Entry / Edit Form -->
-  <details id="expenseFormDetails" class="bg-white p-4 rounded-xl shadow-sm mb-4 group" open>
-    <summary class="flex justify-between items-center cursor-pointer text-gray-600">
-      <span id="formTitle" class="font-semibold text-lg text-blue-700">Log New Expense</span>
-      <span class="group-open:rotate-180 transform transition-transform">▼</span>
-    </summary>
-    <form id="expenseForm" class="space-y-4 pt-4 mt-2 border-t">
-      <div class="grid grid-cols-2 gap-4">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+
+  <!-- Sticky Top Header -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 shadow-xs">
+    <div class="max-w-lg mx-auto">
+      <div class="flex items-center justify-between mb-2">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Amount (₹)</label>
-          <input type="number" id="amount" step="0.01" required class="w-full border rounded-lg p-2 bg-gray-50" placeholder="0.00">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
+            <span>Our Expenses</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Shared</span>
+          </h1>
+          <p class="text-xs text-slate-500 font-medium">Sudhin & Mereena</p>
         </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">Paid By</label>
-          <select id="paidBy" class="w-full border rounded-lg p-2 bg-gray-50">
-            <option>Mereena</option>
-            <option>Sudhin</option>
-          </select>
+
+        <!-- Active Payer Switcher -->
+        <button id="toggleUserBtn" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 active:scale-95 transition px-3 py-1.5 rounded-full border border-slate-200 text-xs font-semibold" title="Tap to switch active profile">
+          <span class="text-slate-500">I am:</span>
+          <span id="activeUserBadge" class="flex items-center gap-1.5 text-blue-700 font-bold">
+            <span id="activeUserDot" class="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span id="activeUserName">Sudhin</span>
+          </span>
+          <span class="text-[10px] text-slate-400">⇄</span>
+        </button>
+      </div>
+
+      <!-- Month Navigation Bar -->
+      <div class="flex items-center justify-between bg-slate-100/90 rounded-xl p-1 text-sm font-semibold">
+        <button id="prevMonthBtn" class="p-1.5 rounded-lg hover:bg-white active:bg-slate-200 text-slate-600 transition" aria-label="Previous month">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        
+        <div class="flex items-center gap-2">
+          <span id="currentMonthLabel" class="text-slate-900 font-bold">October 2026</span>
+          <input type="month" id="displayMonth" class="hidden">
+          <button id="todayMonthBtn" class="text-[10px] uppercase tracking-wider font-extrabold bg-blue-600 text-white px-2 py-0.5 rounded-md hidden shadow-xs">
+            Current
+          </button>
+        </div>
+
+        <button id="nextMonthBtn" class="p-1.5 rounded-lg hover:bg-white active:bg-slate-200 text-slate-600 transition" aria-label="Next month">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-lg mx-auto p-4 space-y-4">
+
+    <!-- Add to Home Screen iOS Tip (Dismissible) -->
+    <div id="iosInstallBanner" class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 shadow-xs relative">
+      <button id="closeInstallBanner" class="absolute top-2 right-2 text-slate-400 hover:text-slate-600 text-sm p-1">✕</button>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-xs">
+          📱
+        </div>
+        <div class="text-xs text-slate-700 pr-4">
+          <p class="font-bold text-slate-900 mb-0.5">Install on iPhone Home Screen</p>
+          <p>Tap <span class="font-semibold text-blue-700">Share</span> (⎋) in Safari &rarr; select <span class="font-semibold text-blue-700">"Add to Home Screen"</span> for fullscreen native app mode!</p>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
+    </div>
+
+    <!-- Monthly Expense Budget & Pace Card -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-bold text-slate-900">Monthly Expense Budget</h2>
+          <span id="budgetStatusBadge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            On Track
+          </span>
+        </div>
+        <button id="openBudgetModalBtn" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 active:scale-95 transition">
+          <span>Adjust Limits</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <!-- Main Budget Numbers -->
+      <div class="grid grid-cols-2 gap-2 mb-2">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Category</label>
-          <select id="category" class="w-full border rounded-lg p-2 bg-gray-50">
-            <option>Groceries</option>
-            <option>Food & Dining</option>
-            <option>Utilities</option>
-            <option>Rent</option>
-            <option>EMI</option>
-            <option>Vehicle & Fuel</option>
-            <option>Travel</option>
-            <option>Loan</option>
-            <option>Shopping</option>
-            <option>Investment</option>
-            <option>Entertainment</option>
-            <option>Misc</option>
-          </select>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EXPENSES THIS MONTH</span>
+          <p id="totalSpentText" class="text-2xl font-extrabold text-slate-900">₹0</p>
+          <p class="text-[10px] text-slate-400 font-medium">(Excludes Investments)</p>
+        </div>
+        <div class="text-right">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EXPENSE LIMIT</span>
+          <p id="totalBudgetText" class="text-lg font-bold text-slate-500 mt-1">₹70,000</p>
+        </div>
+      </div>
+
+      <!-- Budget Progress Bar -->
+      <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-3">
+        <div id="budgetProgressBar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+      </div>
+
+      <!-- Daily Pace & Remaining Days -->
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+        <div>
+          <span class="text-slate-500">Remaining:</span>
+          <strong id="remainingBudgetText" class="text-slate-800 ml-1">₹70,000</strong>
+        </div>
+        <div id="dailyAllowanceBox" class="text-right">
+          <span class="text-slate-500">Daily Guide:</span>
+          <strong id="dailyAllowanceText" class="text-blue-700 ml-1">₹2,300/day</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Entry Form (Expenses & Investments) -->
+    <details id="expenseFormDetails" class="bg-white rounded-2xl shadow-sm border border-slate-200/80 group overflow-hidden" open>
+      <summary class="flex justify-between items-center cursor-pointer p-4 select-none hover:bg-slate-50 transition">
+        <div class="flex items-center gap-2">
+          <div id="formIconBadge" class="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+            +
+          </div>
+          <span id="formTitle" class="font-bold text-sm text-slate-900">Log New Entry</span>
+        </div>
+        <span class="group-open:rotate-180 transform transition-transform text-slate-400 text-xs">▼</span>
+      </summary>
+
+      <form id="expenseForm" class="p-4 pt-0 space-y-3.5 border-t border-slate-100 mt-1">
+        
+        <!-- Entry Type Switcher: Expense vs. Investment -->
+        <div class="pt-2">
+          <label class="block text-[11px] font-bold text-slate-500 mb-1 uppercase tracking-wider">ENTRY TYPE</label>
+          <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+            <button type="button" id="typeExpenseBtn" class="py-2 rounded-lg text-xs font-bold bg-white text-blue-700 shadow-xs transition">
+              💳 General Expense
+            </button>
+            <button type="button" id="typeInvestmentBtn" class="py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+              📈 Investment
+            </button>
+          </div>
+          <input type="hidden" id="entryType" value="expense">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 mb-1">Amount (₹)</label>
+            <input type="number" id="amount" step="0.01" required placeholder="0.00" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-900 font-bold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 mb-1">Paid By</label>
+            <select id="paidBy" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+              <option value="Sudhin">Sudhin</option>
+              <option value="Mereena">Mereena</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label id="categoryLabel" class="block text-[11px] font-bold text-slate-500 mb-1">Category</label>
+            <select id="category" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+              <!-- Dynamically populated based on Entry Type -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 mb-1">Payment Mode</label>
+            <select id="paymentMode" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+              <option>UPI</option>
+              <option>Credit/Debit Card</option>
+              <option>Cash</option>
+              <option>Net Banking</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="block text-[11px] font-bold text-slate-500 mb-1">Description / Note</label>
+            <input type="text" id="desc" required placeholder="e.g. Weekly Groceries / Mutual Fund SIP" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 mb-1">Date</label>
+            <input type="date" id="date" required class="w-full border border-slate-200 rounded-xl p-2 bg-slate-50 text-slate-900 text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3 rounded-xl shadow-md transition text-sm">
+            Log Expense
+          </button>
+          <button type="button" id="cancelEditBtn" class="hidden px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl text-sm transition">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </details>
+
+    <!-- Category Limits Donut Cards (Small Donut Graphs per Category) -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">Category Limits & Donut Gauges</h2>
+          <p class="text-[11px] text-slate-500 font-medium">Overspent categories are highlighted in bold red</p>
+        </div>
+        <button id="adjustCatLimitsBtn" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 active:scale-95 transition">
+          <span>Edit</span>
+        </button>
+      </div>
+
+      <!-- Grid of Small Category Donut Cards -->
+      <div id="categoryGaugesGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+        <!-- Dynamically injected via JS -->
+      </div>
+    </section>
+
+    <!-- Couple 50/50 Split & Settlement Card (Expenses Only) -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+          <span>Couple Expense Split (50/50)</span>
+          <span class="text-xs text-slate-400 font-normal">Shared Expenses</span>
+        </h2>
+        <span class="text-[11px] font-semibold text-slate-500" id="combinedTotalText">Total: ₹0</span>
+      </div>
+
+      <!-- Both Spouses Numbers -->
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <!-- Sudhin -->
+        <div class="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-blue-900 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span> Sudhin
+            </span>
+            <span id="sudhinPercent" class="text-[10px] font-extrabold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">0%</span>
+          </div>
+          <p id="sudhinTotal" class="text-lg font-extrabold text-blue-950">₹0</p>
+        </div>
+
+        <!-- Mereena -->
+        <div class="bg-pink-50/70 border border-pink-100 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-pink-900 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-pink-500"></span> Mereena
+            </span>
+            <span id="mereenaPercent" class="text-[10px] font-extrabold text-pink-600 bg-pink-100 px-1.5 py-0.5 rounded">0%</span>
+          </div>
+          <p id="mereenaTotal" class="text-lg font-extrabold text-pink-950">₹0</p>
+        </div>
+      </div>
+
+      <!-- Split Ratio Bar -->
+      <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex mb-3">
+        <div id="sudhinBar" class="bg-blue-600 h-2 transition-all duration-300" style="width: 50%"></div>
+        <div id="mereenaBar" class="bg-pink-500 h-2 transition-all duration-300" style="width: 50%"></div>
+      </div>
+
+      <!-- Settlement Status Message -->
+      <div id="settlementCard" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center gap-2 text-xs font-medium text-slate-700">
+        <span id="settlementIcon">⚖️</span>
+        <span id="settlementText">All settled up! Equal 50/50 split.</span>
+      </div>
+    </section>
+
+    <!-- Investments Card (Tracked Alone & Separately) -->
+    <section class="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl p-4 shadow-sm border border-emerald-200/80">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+            📈
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-emerald-950">Investments</h2>
+            <p class="text-[10px] text-emerald-700 font-medium">Tracked standalone • Not mixed in expenses</p>
+          </div>
+        </div>
+        <button id="logInvestmentQuickBtn" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1">
+          <span>+ Add Investment</span>
+        </button>
+      </div>
+
+      <!-- Investment Totals -->
+      <div class="grid grid-cols-3 gap-2 bg-white/80 rounded-xl p-3 border border-emerald-100 shadow-xs mb-3">
+        <div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">TOTAL INVESTED</span>
+          <p id="totalInvestmentText" class="text-base font-extrabold text-emerald-700 mt-0.5">₹0</p>
         </div>
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Payment Mode</label>
-          <select id="paymentMode" class="w-full border rounded-lg p-2 bg-gray-50">
-            <option>UPI</option>
-            <option>Credit/Debit Card</option>
-            <option>Cash</option>
-            <option>Net Banking</option>
-          </select>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SUDHIN</span>
+          <p id="sudhinInvestmentText" class="text-sm font-bold text-blue-700 mt-0.5">₹0</p>
+        </div>
+        <div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">MEREENA</span>
+          <p id="mereenaInvestmentText" class="text-sm font-bold text-pink-600 mt-0.5">₹0</p>
         </div>
       </div>
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">Date</label>
-        <input type="date" id="date" required class="w-full border rounded-lg p-2 bg-gray-50">
+
+      <!-- Investment Transactions List -->
+      <div id="investmentListContainer" class="space-y-1.5">
+        <p class="text-center text-xs text-slate-400 py-2 italic">No investments logged for this month.</p>
       </div>
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">Description</label>
-        <input type="text" id="desc" required class="w-full border rounded-lg p-2 bg-gray-50" placeholder="e.g., Weekly groceries">
+    </section>
+
+    <!-- Expense Breakdown Donut Chart -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">Expense Breakdown</h2>
+          <p class="text-[11px] text-slate-400 font-medium">Category share for selected month</p>
+        </div>
       </div>
-      
+
+      <div class="h-64 relative">
+        <canvas id="expenseChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Transactions List & Filters -->
+    <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold text-slate-900">Expenses</h2>
+        <span id="txCountBadge" class="text-xs text-slate-400 font-medium">0 items</span>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative">
+        <input type="text" id="searchInput" placeholder="Search merchant, category, or note..." class="w-full border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+        <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+      </div>
+
+      <!-- Payer Filters -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs font-semibold pb-1">
+        <span class="text-[10px] text-slate-400 uppercase tracking-wider shrink-0 mr-1">Filter:</span>
+        <button class="payer-filter-btn shrink-0 px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs" data-payer="all">All</button>
+        <button class="payer-filter-btn shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-payer="Sudhin">Sudhin</button>
+        <button class="payer-filter-btn shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200" data-payer="Mereena">Mereena</button>
+      </div>
+
+      <!-- Category Filter Dropdown Details -->
+      <details class="text-xs group border-t border-slate-100 pt-2">
+        <summary class="cursor-pointer text-slate-500 font-medium flex justify-between items-center py-1 select-none">
+          <span>Filter by Expense Categories</span>
+          <span class="text-[10px] text-blue-600 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <div id="categoryFilters" class="grid grid-cols-2 gap-2 pt-2">
+          <!-- JS auto-populates checkboxes -->
+        </div>
+      </details>
+
+      <!-- Transactions List Container -->
+      <div id="expenseList" class="space-y-2 pt-2 divide-y divide-slate-100">
+        <div class="py-8 text-center text-slate-400 text-xs italic">
+          Loading expenses...
+        </div>
+      </div>
+    </section>
+
+    <!-- Category-Wise Monthly Spend Trends (Bottom, Opens ONLY on user request) -->
+    <details id="trendsSection" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 group overflow-hidden">
+      <summary class="flex justify-between items-center cursor-pointer select-none py-1">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📈</span>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Category Spend Trends (All Months)</h2>
+            <p class="text-[11px] text-slate-400 font-medium">Tap to open category-wise monthly trend chart</p>
+          </div>
+        </div>
+        <span class="group-open:rotate-180 transform transition-transform text-slate-400 text-xs">▼</span>
+      </summary>
+
+      <div class="pt-4 border-t border-slate-100 mt-3">
+        <p class="text-xs text-slate-500 mb-3">Multi-month spend comparison by category (excluding investments).</p>
+        <div class="h-64 relative">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </details>
+
+  </main>
+
+  <!-- Budget Settings Modal -->
+  <div id="budgetModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 hidden animate-fade-in">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 shrink-0">
+        <h3 class="font-bold text-slate-900 text-base">Adjust Monthly Expense Budgets</h3>
+        <button id="closeBudgetModalBtn" class="text-slate-400 hover:text-slate-600 p-1 text-lg">✕</button>
+      </div>
+
+      <div class="overflow-y-auto space-y-4 pr-1">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">TOTAL MONTHLY EXPENSE LIMIT (₹)</label>
+          <input type="number" id="budgetTotalInput" class="w-full border border-slate-300 rounded-xl p-3 text-lg font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none">
+          <p class="text-[11px] text-slate-400 mt-1">Shared total expense budget limit (excludes investments).</p>
+        </div>
+
+        <div class="border-t border-slate-100 pt-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">CATEGORY BUDGET LIMITS</span>
+            <button id="resetCategoryBudgetsBtn" class="text-xs text-blue-600 font-semibold hover:underline">Reset Defaults</button>
+          </div>
+          <div id="categoryBudgetInputs" class="space-y-2 text-xs">
+            <!-- Dynamically populated category inputs -->
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-slate-100 mt-3 shrink-0 flex gap-2">
+        <button id="saveBudgetBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-md text-sm">
+          Save Budget Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl text-center space-y-3">
+      <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-xl font-bold">
+        🗑️
+      </div>
+      <h3 class="font-bold text-slate-900 text-base">Delete Entry?</h3>
+      <p id="deleteModalDetails" class="text-xs text-slate-500">Are you sure you want to permanently delete this entry?</p>
       <div class="flex gap-2 pt-2">
-        <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition">Log Expense</button>
-        <button type="button" id="cancelEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 rounded-lg shadow-md hover:bg-gray-500 transition">Cancel Edit</button>
+        <button id="cancelDeleteBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition">
+          Cancel
+        </button>
+        <button id="confirmDeleteBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm">
+          Delete
+        </button>
       </div>
-    </form>
-  </details>
-
-  <!-- Filter & Grouping Section -->
-  <details class="bg-white p-4 rounded-xl shadow-sm mb-6 group">
-    <summary class="flex justify-between items-center cursor-pointer text-gray-600">
-      <span class="font-semibold text-md">Filters & Categories</span>
-      <span class="group-open:rotate-180 transform transition-transform">▼</span>
-    </summary>
-    <div class="pt-4 mt-2 border-t">
-      <p class="text-xs text-gray-500 mb-3">Uncheck categories to hide them from the totals and charts below.</p>
-      <div id="categoryFilters" class="grid grid-cols-2 gap-y-2 gap-x-1 text-sm text-gray-700">
-        <!-- JS will auto-populate checkboxes here based on the select dropdown -->
-      </div>
-    </div>
-  </details>
-
-  <!-- Dashboard Breakdown (Single Month) -->
-  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
-    <div class="flex justify-between items-center mb-5 pb-2 border-b">
-      <h2 class="text-xl font-bold text-gray-800">Month Overview</h2>
-      <input type="month" id="displayMonth" class="border rounded-lg p-2 text-sm bg-gray-50 font-bold">
-    </div>
-
-    <!-- Group By Summaries -->
-    <div class="grid grid-cols-2 gap-3 mb-5">
-      <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100">
-        <h3 class="text-[10px] font-bold text-indigo-800 mb-2 tracking-wider">PAID BY</h3>
-        <div id="personSummary" class="text-sm text-indigo-900 space-y-1"></div>
-      </div>
-      <div class="bg-teal-50 p-3 rounded-xl border border-teal-100">
-        <h3 class="text-[10px] font-bold text-teal-800 mb-2 tracking-wider">PAYMENT MODE</h3>
-        <div id="modeSummary" class="text-sm text-teal-900 space-y-1"></div>
-      </div>
-    </div>
-
-    <div class="mb-5 text-center">
-      <h2 class="text-xs font-bold text-gray-500 mb-1">TOTAL FOR SELECTED MONTH</h2>
-      <p class="text-4xl font-extrabold text-gray-900" id="totalSpent">₹0</p>
-    </div>
-
-    <div class="h-64 mb-2">
-      <canvas id="expenseChart"></canvas>
     </div>
   </div>
 
-  <!-- Monthly Trend Analysis -->
-  <div class="bg-white p-4 rounded-xl shadow-sm mb-6">
-    <h2 class="text-xl font-bold text-gray-800 mb-2 pb-2 border-b">Spend Trends (All Months)</h2>
-    <p class="text-xs text-gray-500 mb-4">Category-wise monthly breakdown</p>
-    <div class="h-64 mb-2">
-      <canvas id="trendChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Transactions List -->
-  <div class="bg-white p-4 rounded-xl shadow-sm">
-    <h2 class="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider">Transactions</h2>
-    <div id="expenseList" class="space-y-3">
-      <!-- Injected rows -->
-    </div>
-  </div>
-
+  <!-- Application Logic & Firebase Integration -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, query, orderBy } 
+    import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, setDoc } 
       from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-    // 🔴 REPLACE THIS BLOCK WITH YOUR ACTUAL FIREBASE KEYS
-   const firebaseConfig = {
-      apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
-      authDomain: "expense-tracker-2e991.firebaseapp.com",
-      projectId: "expense-tracker-2e991",
-      storageBucket: "expense-tracker-2e991.firebasestorage.app",
-      messagingSenderId: "363528972811",
-      appId: "1:363528972811:web:32f667858f8df59cae350e",
-      measurementId: "G-VPQSHPQ5Z7"
-    };	
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZWHm1lcBIXVYG0a-iKl_5e6Dj4xe2ShM",
+      authDomain: "expense-tracker-2e991.firebaseapp.com",
+      projectId: "expense-tracker-2e991",
+      storageBucket: "expense-tracker-2e991.firebasestorage.app",
+      messagingSenderId: "363528972811",
+      appId: "1:363528972811:web:32f667858f8df59cae350e",
+      measurementId: "G-VPQSHPQ5Z7"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    
-    // Global State
+
+    // General Expense Categories (Investment taken out completely)
+    const EXPENSE_CATEGORIES = [
+      { name: 'Groceries', color: '#10b981' },
+      { name: 'Food & Dining', color: '#f97316' },
+      { name: 'Utilities', color: '#eab308' },
+      { name: 'Rent', color: '#6366f1' },
+      { name: 'EMI', color: '#ec4899' },
+      { name: 'Vehicle & Fuel', color: '#ef4444' },
+      { name: 'Travel', color: '#06b6d4' },
+      { name: 'Loan', color: '#8b5cf6' },
+      { name: 'Shopping', color: '#3b82f6' },
+      { name: 'Entertainment', color: '#a855f7' },
+      { name: 'Misc', color: '#64748b' }
+    ];
+
+    // Investment Types (Tracked alone)
+    const INVESTMENT_TYPES = [
+      'Mutual Funds / SIP',
+      'Stocks / Equity',
+      'PPF / EPF',
+      'Fixed Deposit',
+      'Gold',
+      'Real Estate',
+      'Misc Investment'
+    ];
+
+    const DEFAULT_CATEGORY_BUDGETS = {
+      Groceries: 15000,
+      'Food & Dining': 8000,
+      Utilities: 4000,
+      Rent: 25000,
+      EMI: 0,
+      'Vehicle & Fuel': 5000,
+      Travel: 5000,
+      Loan: 0,
+      Shopping: 8000,
+      Entertainment: 3000,
+      Misc: 4000
+    };
+
+    const DEFAULT_TOTAL_BUDGET = 70000;
+
+    // App State
+    let cachedAllData = [];
+    let editingDocId = null;
+    let pendingDeleteId = null;
     let chartInstance = null;
     let trendChartInstance = null;
-    let cachedAllData = []; 
-    let editingDocId = null; 
-    
-    // Standard chart colors mapping
-    const chartColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#a855f7', '#ec4899', '#14b8a6', '#f43f5e', '#84cc16', '#06b6d4', '#64748b'];
+    let activePayerFilter = 'all';
+    let searchQuery = '';
+    let selectedCategories = new Set(EXPENSE_CATEGORIES.map(c => c.name));
 
-    // Init Dates
+    // Active User Profile
+    let activeUser = localStorage.getItem('expense_active_user') || 'Sudhin';
+
+    // Budget Config
+    let budgetConfig = {
+      totalMonthlyBudget: DEFAULT_TOTAL_BUDGET,
+      categoryBudgets: { ...DEFAULT_CATEGORY_BUDGETS }
+    };
+
+    // Load Local Budget Cache
+    try {
+      const savedBudget = localStorage.getItem('expense_budget_config');
+      if (savedBudget) {
+        budgetConfig = { ...budgetConfig, ...JSON.parse(savedBudget) };
+      }
+    } catch {}
+
+    // Init Date input
     document.getElementById('date').valueAsDate = new Date();
+
     const monthSelector = document.getElementById('displayMonth');
     const now = new Date();
     monthSelector.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // --- Dynamic Category Filters Setup ---
-    const categoryOptions = Array.from(document.getElementById('category').options).map(o => o.value);
-    let selectedFilters = new Set(categoryOptions); 
+    // --- Currency Formatter ---
+    function formatCurrency(num) {
+      if (isNaN(num) || num === null) return '₹0';
+      return '₹' + Math.round(num).toLocaleString('en-IN');
+    }
 
+    // --- Helper to check if an item is an investment ---
+    function isInvestmentItem(item) {
+      if (!item) return false;
+      if (item.type === 'investment' || item.isInvestment === true) return true;
+      if (item.category === 'Investment') return true;
+      if (INVESTMENT_TYPES.includes(item.category)) return true;
+      return false;
+    }
+
+    // --- Entry Type Form Switcher (Expense vs. Investment) ---
+    const typeExpenseBtn = document.getElementById('typeExpenseBtn');
+    const typeInvestmentBtn = document.getElementById('typeInvestmentBtn');
+    const entryTypeInput = document.getElementById('entryType');
+    const categorySelect = document.getElementById('category');
+    const formTitle = document.getElementById('formTitle');
+    const formIconBadge = document.getElementById('formIconBadge');
+    const submitBtn = document.getElementById('submitBtn');
+
+    function populateCategoryDropdown(type) {
+      if (type === 'investment') {
+        categorySelect.innerHTML = INVESTMENT_TYPES.map(inv => `<option value="${inv}">${inv}</option>`).join('');
+        document.getElementById('categoryLabel').innerText = 'Investment Type';
+      } else {
+        categorySelect.innerHTML = EXPENSE_CATEGORIES.map(cat => `<option value="${cat.name}">${cat.name}</option>`).join('');
+        document.getElementById('categoryLabel').innerText = 'Expense Category';
+      }
+    }
+    populateCategoryDropdown('expense');
+
+    function setEntryType(type) {
+      entryTypeInput.value = type;
+      if (type === 'investment') {
+        typeInvestmentBtn.className = 'py-2 rounded-lg text-xs font-bold bg-white text-emerald-700 shadow-xs transition';
+        typeExpenseBtn.className = 'py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition';
+        formTitle.innerText = editingDocId ? 'Editing Investment...' : 'Log New Investment';
+        formIconBadge.className = 'w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm';
+        formIconBadge.innerText = '📈';
+        submitBtn.innerText = editingDocId ? 'Update Investment' : 'Log Investment';
+        submitBtn.className = 'flex-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-3 rounded-xl shadow-md transition text-sm';
+        populateCategoryDropdown('investment');
+      } else {
+        typeExpenseBtn.className = 'py-2 rounded-lg text-xs font-bold bg-white text-blue-700 shadow-xs transition';
+        typeInvestmentBtn.className = 'py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition';
+        formTitle.innerText = editingDocId ? 'Editing Expense...' : 'Log New Expense';
+        formIconBadge.className = 'w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm';
+        formIconBadge.innerText = '+';
+        submitBtn.innerText = editingDocId ? 'Update Expense' : 'Log Expense';
+        submitBtn.className = 'flex-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-3 rounded-xl shadow-md transition text-sm';
+        populateCategoryDropdown('expense');
+      }
+    }
+
+    typeExpenseBtn.addEventListener('click', () => setEntryType('expense'));
+    typeInvestmentBtn.addEventListener('click', () => setEntryType('investment'));
+
+    // Quick Button to open Investment logger
+    document.getElementById('logInvestmentQuickBtn').addEventListener('click', () => {
+      setEntryType('investment');
+      document.getElementById('expenseFormDetails').open = true;
+      document.getElementById('expenseFormDetails').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // --- Active User UI ---
+    function updateActiveUserUI() {
+      const dot = document.getElementById('activeUserDot');
+      const name = document.getElementById('activeUserName');
+      name.innerText = activeUser;
+      if (activeUser === 'Sudhin') {
+        dot.className = 'w-2 h-2 rounded-full bg-blue-600';
+        name.className = 'text-blue-700 font-bold';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-pink-500';
+        name.className = 'text-pink-600 font-bold';
+      }
+      document.getElementById('paidBy').value = activeUser;
+      localStorage.setItem('expense_active_user', activeUser);
+    }
+    updateActiveUserUI();
+
+    document.getElementById('toggleUserBtn').addEventListener('click', () => {
+      activeUser = activeUser === 'Sudhin' ? 'Mereena' : 'Sudhin';
+      updateActiveUserUI();
+    });
+
+    // --- Month Navigation ---
+    function updateMonthDisplay() {
+      const [year, month] = monthSelector.value.split('-');
+      const d = new Date(parseInt(year), parseInt(month) - 1, 1);
+      document.getElementById('currentMonthLabel').innerText = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+
+      const isCurrentMonth = monthSelector.value === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const todayBtn = document.getElementById('todayMonthBtn');
+      if (isCurrentMonth) {
+        todayBtn.classList.add('hidden');
+      } else {
+        todayBtn.classList.remove('hidden');
+      }
+    }
+    updateMonthDisplay();
+
+    document.getElementById('prevMonthBtn').addEventListener('click', () => {
+      const [year, month] = monthSelector.value.split('-').map(Number);
+      const prevDate = new Date(year, month - 2, 1);
+      monthSelector.value = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+      updateMonthDisplay();
+      renderApp();
+    });
+
+    document.getElementById('nextMonthBtn').addEventListener('click', () => {
+      const [year, month] = monthSelector.value.split('-').map(Number);
+      const nextDate = new Date(year, month, 1);
+      monthSelector.value = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+      updateMonthDisplay();
+      renderApp();
+    });
+
+    document.getElementById('todayMonthBtn').addEventListener('click', () => {
+      monthSelector.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      updateMonthDisplay();
+      renderApp();
+    });
+
+    // --- Category Filters Checkboxes (Expenses only) ---
     const filterContainer = document.getElementById('categoryFilters');
-    filterContainer.innerHTML = categoryOptions.map(cat => `
-      <label class="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border cursor-pointer">
-        <input type="checkbox" value="${cat}" checked class="category-filter rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
-        <span class="truncate text-gray-700">${cat}</span>
+    filterContainer.innerHTML = EXPENSE_CATEGORIES.map(cat => `
+      <label class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200/80 cursor-pointer hover:bg-slate-100 transition">
+        <input type="checkbox" value="${cat.name}" checked class="cat-checkbox rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+        <span class="truncate text-slate-700 text-xs">${cat.name}</span>
       </label>
     `).join('');
 
-    // Listen for filter changes
     filterContainer.addEventListener('change', (e) => {
-      if (e.target.classList.contains('category-filter')) {
-        if (e.target.checked) selectedFilters.add(e.target.value);
-        else selectedFilters.delete(e.target.value);
-        renderAppForSelectedMonth();
-        renderTrendChart(); // Update trend chart too
+      if (e.target.classList.contains('cat-checkbox')) {
+        if (e.target.checked) selectedCategories.add(e.target.value);
+        else selectedCategories.delete(e.target.value);
+        renderApp();
       }
     });
 
-    // --- Trend Chart Logic (Line Chart) ---
-    function renderTrendChart() {
-      if (!cachedAllData || cachedAllData.length === 0) return;
+    // --- Payer Filters ---
+    document.querySelectorAll('.payer-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.payer-filter-btn').forEach(b => {
+          b.className = 'payer-filter-btn shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+        });
+        btn.className = 'payer-filter-btn shrink-0 px-2.5 py-1 rounded-lg bg-blue-600 text-white shadow-xs';
+        activePayerFilter = btn.dataset.payer;
+        renderApp();
+      });
+    });
 
-      const monthlyData = {};
-      
-      // Aggregate data by Month and Category
-      cachedAllData.forEach((data) => {
-        if (!selectedFilters.has(data.category)) return; // Respect checkboxes
+    // --- Search Input ---
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderApp();
+    });
 
-        const monthKey = data.date.substring(0, 7); // Extracts "YYYY-MM"
-        if (!monthlyData[monthKey]) monthlyData[monthKey] = {};
-        
-        const amt = parseFloat(data.amount);
-        monthlyData[monthKey][data.category] = (monthlyData[monthKey][data.category] || 0) + amt;
+    // --- Core Render Logic ---
+    function renderApp() {
+      const selectedMonthKey = monthSelector.value;
+      if (!selectedMonthKey) return;
+
+      let monthExpenseTotal = 0;
+      let sudhinExpenseTotal = 0;
+      let mereenaExpenseTotal = 0;
+      const catTotals = {};
+
+      let totalInvestment = 0;
+      let sudhinInvestment = 0;
+      let mereenaInvestment = 0;
+      const monthInvestments = [];
+
+      const filteredExpenses = [];
+
+      cachedAllData.forEach(item => {
+        if (!item.date || !item.date.startsWith(selectedMonthKey)) return;
+
+        const amt = parseFloat(item.amount) || 0;
+
+        // Check if item is Investment
+        if (isInvestmentItem(item)) {
+          totalInvestment += amt;
+          if (item.paidBy === 'Sudhin') sudhinInvestment += amt;
+          else if (item.paidBy === 'Mereena') mereenaInvestment += amt;
+          monthInvestments.push(item);
+          return; // DO NOT add to general expenses!
+        }
+
+        // Otherwise, it is an Expense
+        monthExpenseTotal += amt;
+        if (item.paidBy === 'Sudhin') sudhinExpenseTotal += amt;
+        else if (item.paidBy === 'Mereena') mereenaExpenseTotal += amt;
+
+        catTotals[item.category] = (catTotals[item.category] || 0) + amt;
+
+        // Check search & filters for expense list
+        if (!selectedCategories.has(item.category)) return;
+        if (activePayerFilter !== 'all' && item.paidBy !== activePayerFilter) return;
+        if (searchQuery) {
+          const matchDesc = (item.description || '').toLowerCase().includes(searchQuery);
+          const matchCat = (item.category || '').toLowerCase().includes(searchQuery);
+          const matchMode = (item.paymentMode || '').toLowerCase().includes(searchQuery);
+          if (!matchDesc && !matchCat && !matchMode) return;
+        }
+
+        filteredExpenses.push(item);
       });
 
-      // Sort months chronologically
-      const sortedMonths = Object.keys(monthlyData).sort();
-      if (sortedMonths.length === 0) {
-          if(trendChartInstance) trendChartInstance.destroy();
-          return;
+      // 1. Update Monthly Expense Budget & Pace
+      const totalBudget = budgetConfig.totalMonthlyBudget || DEFAULT_TOTAL_BUDGET;
+      const pctSpent = totalBudget > 0 ? (monthExpenseTotal / totalBudget) * 100 : 0;
+      const remainingBudget = totalBudget - monthExpenseTotal;
+
+      document.getElementById('totalSpentText').innerText = formatCurrency(monthExpenseTotal);
+      document.getElementById('totalBudgetText').innerText = formatCurrency(totalBudget);
+      
+      const progressBar = document.getElementById('budgetProgressBar');
+      progressBar.style.width = `${Math.min(100, pctSpent)}%`;
+
+      const statusBadge = document.getElementById('budgetStatusBadge');
+      if (pctSpent >= 100) {
+        progressBar.className = 'bg-red-500 h-2.5 rounded-full transition-all duration-500';
+        statusBadge.className = 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800';
+        statusBadge.innerText = 'Exceeded';
+      } else if (pctSpent >= 80) {
+        progressBar.className = 'bg-amber-500 h-2.5 rounded-full transition-all duration-500';
+        statusBadge.className = 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800';
+        statusBadge.innerText = 'Near Limit';
+      } else {
+        progressBar.className = 'bg-emerald-500 h-2.5 rounded-full transition-all duration-500';
+        statusBadge.className = 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800';
+        statusBadge.innerText = 'On Track';
       }
 
-      // Generate datasets mapped to standard colors
-      const datasets = [];
-      categoryOptions.forEach((cat, index) => {
-        if (!selectedFilters.has(cat)) return;
-        
-        const dataForCat = sortedMonths.map(month => monthlyData[month][cat] || 0);
-        
-        // Only add dataset if it has > 0 value in at least one month
-        if (dataForCat.some(val => val > 0)) {
-            const color = chartColors[index % chartColors.length];
-            datasets.push({
-                label: cat,
-                data: dataForCat,
-                backgroundColor: color,
-                borderColor: color, // Ensure the line has the correct color
-                borderWidth: 2,     // Thickness of the line
-                pointRadius: 3,     // Visible points
-                pointHoverRadius: 6,
-                tension: 0.3        // Slight curve to the lines
-            });
+      const remText = document.getElementById('remainingBudgetText');
+      if (remainingBudget >= 0) {
+        remText.innerText = formatCurrency(remainingBudget);
+        remText.className = 'text-slate-800 font-bold ml-1';
+      } else {
+        remText.innerText = `-${formatCurrency(Math.abs(remainingBudget))}`;
+        remText.className = 'text-red-600 font-bold ml-1';
+      }
+
+      // Days remaining calculation
+      const [curYear, curMonth] = selectedMonthKey.split('-').map(Number);
+      const daysInMonth = new Date(curYear, curMonth, 0).getDate();
+      const isCurrentCalMonth = selectedMonthKey === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const dayToday = isCurrentCalMonth ? now.getDate() : daysInMonth;
+      const daysLeft = Math.max(1, daysInMonth - dayToday);
+
+      const dailyAllowanceBox = document.getElementById('dailyAllowanceBox');
+      if (isCurrentCalMonth && remainingBudget > 0) {
+        dailyAllowanceBox.classList.remove('hidden');
+        document.getElementById('dailyAllowanceText').innerText = `${formatCurrency(remainingBudget / daysLeft)}/day (${daysLeft}d left)`;
+      } else if (isCurrentCalMonth) {
+        dailyAllowanceBox.classList.remove('hidden');
+        document.getElementById('dailyAllowanceText').innerText = `₹0/day`;
+      } else {
+        dailyAllowanceBox.classList.add('hidden');
+      }
+
+      // 2. Render Small Donut Shaped Graphs for Each Category Limit
+      renderCategoryGauges(catTotals);
+
+      // 3. Update Couple Split (Expenses Only)
+      const combinedExpenses = sudhinExpenseTotal + mereenaExpenseTotal;
+      document.getElementById('combinedTotalText').innerText = `Total: ${formatCurrency(combinedExpenses)}`;
+      document.getElementById('sudhinTotal').innerText = formatCurrency(sudhinExpenseTotal);
+      document.getElementById('mereenaTotal').innerText = formatCurrency(mereenaExpenseTotal);
+
+      const sPct = combinedExpenses > 0 ? (sudhinExpenseTotal / combinedExpenses) * 100 : 50;
+      const mPct = combinedExpenses > 0 ? (mereenaExpenseTotal / combinedExpenses) * 100 : 50;
+      document.getElementById('sudhinPercent').innerText = `${sPct.toFixed(0)}%`;
+      document.getElementById('mereenaPercent').innerText = `${mPct.toFixed(0)}%`;
+      document.getElementById('sudhinBar').style.width = `${sPct}%`;
+      document.getElementById('mereenaBar').style.width = `${mPct}%`;
+
+      const diff = sudhinExpenseTotal - mereenaExpenseTotal;
+      const halfDiff = Math.abs(diff) / 2;
+      const settlementText = document.getElementById('settlementText');
+      const settlementIcon = document.getElementById('settlementIcon');
+      const settlementCard = document.getElementById('settlementCard');
+
+      if (Math.abs(diff) < 1) {
+        settlementText.innerText = 'All settled up! Equal 50/50 split.';
+        settlementIcon.innerText = '⚖️';
+        settlementCard.className = 'bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center gap-2 text-xs font-medium text-slate-700';
+      } else if (diff > 0) {
+        settlementText.innerText = `Mereena owes Sudhin ${formatCurrency(halfDiff)}`;
+        settlementIcon.innerText = '💡';
+        settlementCard.className = 'bg-blue-50 border border-blue-200 rounded-xl p-2.5 flex items-center gap-2 text-xs font-bold text-blue-900';
+      } else {
+        settlementText.innerText = `Sudhin owes Mereena ${formatCurrency(halfDiff)}`;
+        settlementIcon.innerText = '💡';
+        settlementCard.className = 'bg-pink-50 border border-pink-200 rounded-xl p-2.5 flex items-center gap-2 text-xs font-bold text-pink-900';
+      }
+
+      // 4. Update Investments Section
+      document.getElementById('totalInvestmentText').innerText = formatCurrency(totalInvestment);
+      document.getElementById('sudhinInvestmentText').innerText = formatCurrency(sudhinInvestment);
+      document.getElementById('mereenaInvestmentText').innerText = formatCurrency(mereenaInvestment);
+
+      const invListContainer = document.getElementById('investmentListContainer');
+      if (monthInvestments.length === 0) {
+        invListContainer.innerHTML = `<p class="text-center text-xs text-slate-400 py-2 italic">No investments logged for this month.</p>`;
+      } else {
+        invListContainer.innerHTML = monthInvestments.map(item => {
+          const isSudhin = item.paidBy === 'Sudhin';
+          const d = new Date(item.date + 'T00:00:00');
+          const dateFmt = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+          return `
+            <div class="flex items-center justify-between py-2 px-2.5 bg-white rounded-xl border border-emerald-100/80 shadow-xs text-xs">
+              <div class="min-w-0 pr-2">
+                <p class="font-bold text-slate-900 truncate">${item.description || 'Investment'}</p>
+                <p class="text-[10px] text-slate-500 mt-0.5 truncate">
+                  ${dateFmt} • <span class="font-semibold text-emerald-700">${item.category}</span> • ${item.paymentMode || 'Net Banking'}
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <div class="text-right">
+                  <p class="font-extrabold text-emerald-700">${formatCurrency(item.amount)}</p>
+                  <span class="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded ${isSudhin ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}">
+                    ${item.paidBy}
+                  </span>
+                </div>
+                <button data-id="${item.id}" class="edit-btn p-1 text-slate-400 hover:text-blue-600 transition" title="Edit">✏️</button>
+                <button data-id="${item.id}" data-desc="${item.description}" data-amt="${item.amount}" class="delete-btn p-1 text-slate-400 hover:text-red-600 transition" title="Delete">🗑️</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 5. Update Expenses List
+      document.getElementById('txCountBadge').innerText = `${filteredExpenses.length} items`;
+      const listEl = document.getElementById('expenseList');
+
+      if (filteredExpenses.length === 0) {
+        listEl.innerHTML = `<div class="py-8 text-center text-slate-400 text-xs italic">No expenses found matching criteria.</div>`;
+      } else {
+        listEl.innerHTML = filteredExpenses.map(item => {
+          const catMeta = EXPENSE_CATEGORIES.find(c => c.name === item.category);
+          const color = catMeta ? catMeta.color : '#64748b';
+          const isSudhin = item.paidBy === 'Sudhin';
+          const d = new Date(item.date + 'T00:00:00');
+          const dateFmt = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+          return `
+            <div class="flex items-center justify-between py-2.5 hover:bg-slate-50 rounded-xl px-2 transition">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0" style="background-color: ${color}15; color: ${color}">
+                  ${item.category ? item.category[0] : '₹'}
+                </div>
+                <div class="min-w-0">
+                  <p class="font-bold text-xs text-slate-900 truncate">${item.description || 'Expense'}</p>
+                  <p class="text-[10px] text-slate-500 mt-0.5 truncate">
+                    ${dateFmt} • <span class="font-semibold text-slate-700">${item.category}</span> • ${item.paymentMode || 'UPI'}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <div class="text-right">
+                  <p class="font-extrabold text-xs text-slate-900">-${formatCurrency(item.amount)}</p>
+                  <span class="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded ${isSudhin ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}">
+                    ${item.paidBy}
+                  </span>
+                </div>
+                
+                <button data-id="${item.id}" class="edit-btn p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition" title="Edit">
+                  ✏️
+                </button>
+                <button data-id="${item.id}" data-desc="${item.description}" data-amt="${item.amount}" class="delete-btn p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition" title="Delete">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 6. Update Expense Doughnut Chart
+      renderDonutChart(catTotals, monthExpenseTotal);
+
+      // 7. Update Monthly Trend Chart if details section is currently open
+      const trendsSection = document.getElementById('trendsSection');
+      if (trendsSection.open) {
+        renderTrendChart();
+      }
+    }
+
+    // --- Render Small Donut Gauges per Category Limit ---
+    function renderCategoryGauges(catTotals) {
+      const container = document.getElementById('categoryGaugesGrid');
+      const circumference = 2 * Math.PI * 20; // ~125.66
+
+      container.innerHTML = EXPENSE_CATEGORIES.map(cat => {
+        const spent = catTotals[cat.name] || 0;
+        const limit = (budgetConfig.categoryBudgets && budgetConfig.categoryBudgets[cat.name] !== undefined)
+          ? budgetConfig.categoryBudgets[cat.name]
+          : (DEFAULT_CATEGORY_BUDGETS[cat.name] || 0);
+
+        const hasLimit = limit > 0;
+        const pct = hasLimit ? Math.round((spent / limit) * 100) : (spent > 0 ? 100 : 0);
+        const isOverspent = hasLimit && spent > limit;
+        const isNearLimit = hasLimit && pct >= 80 && !isOverspent;
+
+        // Donut stroke offset calculation
+        const clampedPct = Math.min(100, Math.max(0, pct));
+        const strokeOffset = circumference * (1 - clampedPct / 100);
+
+        // Highlight in RED if category overspends limit
+        let strokeColor = cat.color;
+        let cardBgClass = 'bg-white border-slate-200/80 hover:border-slate-300';
+        let badgeHtml = '';
+
+        if (isOverspent) {
+          strokeColor = '#ef4444'; // Red
+          cardBgClass = 'bg-red-50/60 border-red-300 shadow-xs ring-1 ring-red-400/30';
+          const overAmt = spent - limit;
+          badgeHtml = `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 text-red-700">Over +${formatCurrency(overAmt)}</span>`;
+        } else if (hasLimit) {
+          const leftAmt = limit - spent;
+          const badgeColor = isNearLimit ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600';
+          badgeHtml = `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${badgeColor}">${formatCurrency(leftAmt)} left</span>`;
+        } else {
+          badgeHtml = `<span class="text-[9px] font-medium text-slate-400">Uncapped</span>`;
         }
+
+        return `
+          <div class="rounded-xl border p-2.5 transition flex flex-col justify-between ${cardBgClass}">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-xs truncate mr-1 ${isOverspent ? 'text-red-950 font-extrabold' : 'text-slate-800'}" title="${cat.name}">
+                ${cat.name}
+              </span>
+              ${badgeHtml}
+            </div>
+
+            <div class="flex items-center gap-2 mt-1">
+              <!-- Small Donut SVG Gauge -->
+              <div class="relative w-12 h-12 shrink-0 flex items-center justify-center">
+                <svg class="w-12 h-12 -rotate-90 transform" viewBox="0 0 50 50">
+                  <!-- Track Circle -->
+                  <circle cx="25" cy="25" r="20" stroke="${isOverspent ? '#fecaca' : '#f1f5f9'}" stroke-width="5" fill="none" />
+                  <!-- Progress Donut Circle -->
+                  <circle cx="25" cy="25" r="20"
+                          stroke="${strokeColor}"
+                          stroke-width="5"
+                          fill="none"
+                          stroke-dasharray="${circumference.toFixed(2)}"
+                          stroke-dashoffset="${strokeOffset.toFixed(2)}"
+                          stroke-linecap="round"
+                          class="transition-all duration-500" />
+                </svg>
+                <!-- Percentage Inside Donut Hole -->
+                <span class="absolute text-[10px] font-extrabold ${isOverspent ? 'text-red-600' : 'text-slate-700'}">
+                  ${hasLimit ? `${pct}%` : `${pct > 0 ? '100%' : '0%'}`}
+                </span>
+              </div>
+
+              <!-- Spent / Limit Text -->
+              <div class="min-w-0 text-left">
+                <p class="font-extrabold text-xs leading-tight ${isOverspent ? 'text-red-600' : 'text-slate-900'}">
+                  ${formatCurrency(spent)}
+                </p>
+                <p class="text-[10px] text-slate-400 font-medium">
+                  ${hasLimit ? `of ${formatCurrency(limit)}` : 'No limit'}
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // --- Expense Doughnut Chart (Single Month) ---
+    function renderDonutChart(catTotals, monthTotal) {
+      const ctx = document.getElementById('expenseChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      if (monthTotal <= 0) {
+        return;
+      }
+
+      const activeCategories = Object.keys(catTotals).filter(cat => catTotals[cat] > 0);
+      const dataValues = activeCategories.map(cat => catTotals[cat]);
+      const bgColors = activeCategories.map(cat => {
+        const meta = EXPENSE_CATEGORIES.find(c => c.name === cat);
+        return meta ? meta.color : '#64748b';
       });
 
-      // Format X-axis labels (e.g., "Jan 23", "Feb 23")
-      const labels = sortedMonths.map(m => {
-          const d = new Date(m + '-01');
-          return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-      });
-
-      const ctx = document.getElementById('trendChart').getContext('2d');
-      if (trendChartInstance) trendChartInstance.destroy();
-
-      trendChartInstance = new Chart(ctx, {
-        type: 'line', // Changed to Line Chart
-        data: { labels, datasets },
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: activeCategories,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: bgColors,
+            borderWidth: 2,
+            borderColor: '#ffffff',
+            hoverOffset: 6
+          }]
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          scales: {
-            x: { grid: { display: false } },
-            y: { beginAtZero: true } // Let multiple lines overlap instead of stacking
-          },
           plugins: {
-            legend: { 
-                position: 'bottom', 
-                labels: { boxWidth: 10, font: { size: 10 }, padding: 10 } 
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 10,
+                font: { size: 10, family: '-apple-system' },
+                padding: 10
+              }
             },
             tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        let label = context.dataset.label || '';
-                        if (label) label += ': ';
-                        if (context.parsed.y !== null) {
-                            label += '₹' + context.parsed.y.toLocaleString('en-IN');
-                        }
-                        return label;
-                    }
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const val = context.raw || 0;
+                  const pct = ((val / monthTotal) * 100).toFixed(0);
+                  return ` ${label}: ₹${val.toLocaleString('en-IN')} (${pct}%)`;
                 }
+              }
             }
           }
         }
       });
     }
 
-    // --- Core Render Logic ---
-    function renderAppForSelectedMonth() {
-      const selectedMonthYYYYMM = monthSelector.value;
-      if (!selectedMonthYYYYMM) return;
+    // --- Trend Line Chart (Category Wise Over Monthly Timeframe, Bottom) ---
+    function renderTrendChart() {
+      if (!cachedAllData || cachedAllData.length === 0) return;
 
-      let monthTotal = 0;
-      let catTotals = {};
-      let personTotals = {};
-      let modeTotals = {};
-      let filteredHtml = '';
+      const monthlyData = {};
+      cachedAllData.forEach(item => {
+        if (isInvestmentItem(item)) return; // Exclude investments from expense trends
+        if (!selectedCategories.has(item.category)) return;
 
-      cachedAllData.forEach((data) => {
-        // Filter by Month AND Checkboxes
-        if (data.date && data.date.startsWith(selectedMonthYYYYMM) && selectedFilters.has(data.category)) {
-          const amt = parseFloat(data.amount);
-          monthTotal += amt;
-          
-          // Aggregations
-          catTotals[data.category] = (catTotals[data.category] || 0) + amt;
-          personTotals[data.paidBy] = (personTotals[data.paidBy] || 0) + amt;
-          
-          const payMode = data.paymentMode || 'Unknown';
-          modeTotals[payMode] = (modeTotals[payMode] || 0) + amt;
+        const monthKey = item.date.substring(0, 7);
+        if (!monthlyData[monthKey]) monthlyData[monthKey] = {};
+        const amt = parseFloat(item.amount) || 0;
+        monthlyData[monthKey][item.category] = (monthlyData[monthKey][item.category] || 0) + amt;
+      });
 
-          const transactionDate = new Date(data.date);
-          const displayDate = transactionDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const sortedMonths = Object.keys(monthlyData).sort().slice(-6);
+      if (sortedMonths.length === 0) return;
 
-          filteredHtml += `
-            <div class="flex justify-between items-center border-b pb-3 last:border-0 last:pb-0">
-              <div class="flex items-center gap-3">
-                <div class="bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full font-bold text-gray-600">${data.paidBy[0]}</div>
-                <div>
-                  <p class="font-bold text-gray-800">${data.description}</p>
-                  <p class="text-[11px] text-gray-500">${displayDate} • ${payMode} • ${data.category}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-3">
-                <p class="font-bold text-red-500">₹${amt.toFixed(2)}</p>
-                <button data-id="${data.id}" class="edit-btn text-blue-500 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition">✏️</button>
-              </div>
-            </div>
-          `;
+      const datasets = [];
+      EXPENSE_CATEGORIES.forEach(cat => {
+        if (!selectedCategories.has(cat.name)) return;
+        const vals = sortedMonths.map(m => monthlyData[m][cat.name] || 0);
+        if (vals.some(v => v > 0)) {
+          datasets.push({
+            label: cat.name,
+            data: vals,
+            backgroundColor: cat.color,
+            borderColor: cat.color,
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.3
+          });
         }
       });
 
-      // Update UI Summaries
-      document.getElementById('totalSpent').innerText = `₹${monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
-      document.getElementById('expenseList').innerHTML = filteredHtml || '<p class="text-center text-gray-500 italic py-4">No data matches filters.</p>';
+      const labels = sortedMonths.map(m => {
+        const d = new Date(m + '-01');
+        return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      });
 
-      document.getElementById('personSummary').innerHTML = Object.keys(personTotals).length ? Object.entries(personTotals)
-        .map(([p, a]) => `<div class="flex justify-between"><span>${p}:</span> <strong>₹${a.toFixed(0)}</strong></div>`).join('') : '<em>None</em>';
-        
-      document.getElementById('modeSummary').innerHTML = Object.keys(modeTotals).length ? Object.entries(modeTotals)
-        .map(([m, a]) => `<div class="flex justify-between"><span>${m}:</span> <strong>₹${a.toFixed(0)}</strong></div>`).join('') : '<em>None</em>';
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      if (trendChartInstance) trendChartInstance.destroy();
 
-      // Update Doughnut Chart (Single Month)
-      const ctx = document.getElementById('expenseChart').getContext('2d');
-      if (chartInstance) chartInstance.destroy();
-
-      if (monthTotal > 0) {
-        // Map colors consistently with the Trend Chart
-        const bgColors = Object.keys(catTotals).map(cat => {
-            const index = categoryOptions.indexOf(cat);
-            return chartColors[index % chartColors.length];
-        });
-
-        chartInstance = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: Object.keys(catTotals),
-            datasets: [{
-              data: Object.values(catTotals),
-              backgroundColor: bgColors,
-              borderWidth: 2, borderColor: '#ffffff', hoverOffset: 5
-            }]
+      trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true }
           },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } }
-        });
-      }
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { boxWidth: 10, font: { size: 9 }, padding: 8 }
+            }
+          }
+        }
+      });
     }
 
-    // --- Listeners ---
-    monthSelector.addEventListener('change', renderAppForSelectedMonth);
-
-    // Fetch Data
-    const q = query(collection(db, "expenses"), orderBy("date", "desc"));
-    onSnapshot(q, (snapshot) => {
-      cachedAllData = []; 
-      snapshot.forEach((doc) => {
-        cachedAllData.push({ id: doc.id, ...doc.data() });
-      });
-      renderAppForSelectedMonth();
-      renderTrendChart(); // Initial load of trend chart
+    // Trigger Trend Chart Render when Bottom Details Section is Opened
+    document.getElementById('trendsSection').addEventListener('toggle', (e) => {
+      if (e.target.open) {
+        renderTrendChart();
+      }
     });
 
-    // --- Edit Logic ---
+    // --- Firebase Live Listener ---
+    const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+    onSnapshot(q, (snapshot) => {
+      cachedAllData = [];
+      snapshot.forEach(docSnap => {
+        cachedAllData.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      renderApp();
+    });
+
+    // --- Cloud / Local Budget Sync ---
+    try {
+      onSnapshot(doc(db, "settings", "budget"), (snap) => {
+        if (snap.exists()) {
+          budgetConfig = { ...budgetConfig, ...snap.data() };
+          localStorage.setItem('expense_budget_config', JSON.stringify(budgetConfig));
+          renderApp();
+        }
+      });
+    } catch {}
+
+    // --- Form Reset / Cancel Edit ---
     function resetForm() {
       editingDocId = null;
-      document.getElementById('formTitle').innerText = 'Log New Expense';
-      document.getElementById('formTitle').className = 'font-semibold text-lg text-blue-700';
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.innerText = 'Log Expense';
-      submitBtn.className = 'flex-1 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 active:scale-95 transition';
-      
+      setEntryType('expense');
       document.getElementById('cancelEditBtn').classList.add('hidden');
       document.getElementById('amount').value = '';
       document.getElementById('desc').value = '';
+      document.getElementById('paidBy').value = activeUser;
       document.getElementById('date').valueAsDate = new Date();
     }
 
     document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
 
-    document.getElementById('expenseList').addEventListener('click', (e) => {
+    // Edit and Delete Event Delegation
+    document.body.addEventListener('click', (e) => {
       const editBtn = e.target.closest('.edit-btn');
       if (editBtn) {
         const id = editBtn.dataset.id;
-        const expense = cachedAllData.find(ex => ex.id === id);
-        if (expense) {
-          // Fill form
-          document.getElementById('amount').value = expense.amount;
-          document.getElementById('paidBy').value = expense.paidBy;
-          document.getElementById('category').value = expense.category;
-          document.getElementById('paymentMode').value = expense.paymentMode || 'UPI';
-          document.getElementById('date').value = expense.date;
-          document.getElementById('desc').value = expense.description;
-          
-          // Change UI to Edit Mode
+        const item = cachedAllData.find(ex => ex.id === id);
+        if (item) {
           editingDocId = id;
-          document.getElementById('formTitle').innerText = 'Editing Expense...';
-          document.getElementById('formTitle').className = 'font-semibold text-lg text-amber-600 animate-pulse';
-          
-          const submitBtn = document.getElementById('submitBtn');
-          submitBtn.innerText = 'Update Expense';
-          submitBtn.className = 'flex-1 bg-amber-500 text-white font-bold py-3 rounded-lg shadow-md hover:bg-amber-600 active:scale-95 transition';
-          
+          const isInv = isInvestmentItem(item);
+          setEntryType(isInv ? 'investment' : 'expense');
+
+          document.getElementById('amount').value = item.amount;
+          document.getElementById('paidBy').value = item.paidBy;
+          document.getElementById('category').value = item.category;
+          document.getElementById('paymentMode').value = item.paymentMode || 'UPI';
+          document.getElementById('date').value = item.date;
+          document.getElementById('desc').value = item.description;
+
           document.getElementById('cancelEditBtn').classList.remove('hidden');
-          
-          // Open details tag and scroll to top
           document.getElementById('expenseFormDetails').open = true;
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          document.getElementById('expenseFormDetails').scrollIntoView({ behavior: 'smooth' });
         }
+        return;
+      }
+
+      const delBtn = e.target.closest('.delete-btn');
+      if (delBtn) {
+        pendingDeleteId = delBtn.dataset.id;
+        document.getElementById('deleteModalDetails').innerText = `Delete "${delBtn.dataset.desc}" of ₹${parseFloat(delBtn.dataset.amt).toFixed(2)}?`;
+        document.getElementById('deleteModal').classList.remove('hidden');
       }
     });
 
-    // --- Save / Update ---
+    document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
+      document.getElementById('deleteModal').classList.add('hidden');
+      pendingDeleteId = null;
+    });
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+      if (pendingDeleteId) {
+        try {
+          await deleteDoc(doc(db, "expenses", pendingDeleteId));
+        } catch (err) {
+          alert('Failed to delete item.');
+        }
+      }
+      document.getElementById('deleteModal').classList.add('hidden');
+      pendingDeleteId = null;
+    });
+
+    // Save or Update Entry
     document.getElementById('expenseForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('submitBtn');
-      btn.innerText = 'Saving...';
-      btn.disabled = true;
-      
+      const currentSubmitBtn = document.getElementById('submitBtn');
+      const originalText = currentSubmitBtn.innerText;
+      currentSubmitBtn.innerText = 'Saving...';
+      currentSubmitBtn.disabled = true;
+
+      const isInv = entryTypeInput.value === 'investment';
+
       const payload = {
         amount: parseFloat(document.getElementById('amount').value),
         paidBy: document.getElementById('paidBy').value,
@@ -439,6 +1281,8 @@
         paymentMode: document.getElementById('paymentMode').value,
         date: document.getElementById('date').value,
         description: document.getElementById('desc').value,
+        type: isInv ? 'investment' : 'expense',
+        isInvestment: isInv,
         timestamp: new Date()
       };
 
@@ -449,14 +1293,87 @@
           await addDoc(collection(db, "expenses"), payload);
         }
         resetForm();
-        document.getElementById('expenseFormDetails').open = false; // Collapse on success
+        document.getElementById('expenseFormDetails').open = false;
       } catch (err) {
-        console.error("Error saving data:", err);
-        alert("Failed to save. Check internet connection.");
-        btn.innerText = editingDocId ? 'Update Expense' : 'Log Expense';
+        alert('Failed to save. Check internet connection.');
+        currentSubmitBtn.innerText = originalText;
       } finally {
-        btn.disabled = false;
+        currentSubmitBtn.disabled = false;
       }
+    });
+
+    // --- Budget Modal Handlers ---
+    const budgetModal = document.getElementById('budgetModal');
+    const categoryBudgetInputs = document.getElementById('categoryBudgetInputs');
+
+    function populateBudgetModal() {
+      document.getElementById('budgetTotalInput').value = budgetConfig.totalMonthlyBudget;
+      categoryBudgetInputs.innerHTML = EXPENSE_CATEGORIES.map(cat => `
+        <div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+          <span class="font-medium text-slate-700">${cat.name}</span>
+          <div class="flex items-center gap-1 w-28 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+            <span class="text-slate-400 font-bold">₹</span>
+            <input type="number" class="cat-budget-input w-full bg-transparent font-bold text-slate-800 outline-none text-right" data-cat="${cat.name}" value="${budgetConfig.categoryBudgets[cat.name] || 0}">
+          </div>
+        </div>
+      `).join('');
+    }
+
+    const openBudgetModal = () => {
+      populateBudgetModal();
+      budgetModal.classList.remove('hidden');
+    };
+
+    document.getElementById('openBudgetModalBtn').addEventListener('click', openBudgetModal);
+    document.getElementById('adjustCatLimitsBtn').addEventListener('click', openBudgetModal);
+
+    document.getElementById('closeBudgetModalBtn').addEventListener('click', () => {
+      budgetModal.classList.add('hidden');
+    });
+
+    document.getElementById('resetCategoryBudgetsBtn').addEventListener('click', () => {
+      document.getElementById('budgetTotalInput').value = DEFAULT_TOTAL_BUDGET;
+      document.querySelectorAll('.cat-budget-input').forEach(input => {
+        input.value = DEFAULT_CATEGORY_BUDGETS[input.dataset.cat] || 0;
+      });
+    });
+
+    document.getElementById('saveBudgetBtn').addEventListener('click', async () => {
+      const newTotal = parseFloat(document.getElementById('budgetTotalInput').value) || DEFAULT_TOTAL_BUDGET;
+      const newCats = {};
+      document.querySelectorAll('.cat-budget-input').forEach(input => {
+        newCats[input.dataset.cat] = parseFloat(input.value) || 0;
+      });
+
+      budgetConfig = {
+        totalMonthlyBudget: newTotal,
+        categoryBudgets: newCats
+      };
+
+      localStorage.setItem('expense_budget_config', JSON.stringify(budgetConfig));
+
+      try {
+        await setDoc(doc(db, "settings", "budget"), budgetConfig, { merge: true });
+      } catch (e) {
+        console.log('Saved to local storage.');
+      }
+
+      budgetModal.classList.add('hidden');
+      renderApp();
+    });
+
+    // Show iOS install tip if not already in standalone display mode
+    const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const dismissedBanner = localStorage.getItem('ios_banner_dismissed');
+
+    if (isIOS && !isStandalone && !dismissedBanner) {
+      document.getElementById('iosInstallBanner').classList.remove('hidden');
+    }
+
+    document.getElementById('closeInstallBanner').addEventListener('click', () => {
+      document.getElementById('iosInstallBanner').classList.add('hidden');
+      localStorage.setItem('ios_banner_dismissed', 'true');
     });
   </script>
 </body>
